@@ -10,9 +10,9 @@ async def main():
         return
     print("Web search skill initialized successfully!")
 
-    # Test search context
+    # Test search functionality
     search_query = "What are the latest developments in quantum computing?"
-    print(f"\nGetting search context for: {search_query}")
+    print(f"\nPerforming web search for: {search_query}")
     response = await web_search_skill.search(
         query=search_query,
         search_depth="basic",
@@ -21,13 +21,15 @@ async def main():
         max_tokens=2000  # Using a smaller context for testing
     )
 
-    # Check and display the search context
+    # Check and display the search results
     if response.get("success"):
         data = response["data"]
-        print("\nSearch Context:")
+        print("\nSearch Results:")
         print("-" * 80)
         print(data.get("context"))
         print("-" * 80)
+        print("\nConfiguration Used:")
+        print(data.get("used_config"))
     else:
         error = response.get("error", "Unknown error")
         print("Search failed:")
