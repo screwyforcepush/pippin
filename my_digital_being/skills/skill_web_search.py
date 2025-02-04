@@ -72,25 +72,18 @@ class WebSearchSkill:
     async def search(
         self,
         query: str,
-        search_depth: Optional[str] = None,
-        topic: Optional[str] = None,
-        time_range: Optional[str] = None,
-        max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Perform a web search using Tavily and return context suitable for RAG applications.
 
         Args:
             query: The search query
-            search_depth: "basic" or "advanced" search depth (defaults to configured value)
-            topic: The category of the search (defaults to configured value)
-            time_range: Time range filter for the search (e.g., "day", "week", "month", "year")
-            max_tokens: Maximum number of tokens to return in the context (defaults to configured value)
 
         Returns:
             Dictionary containing search context and metadata
         """
         if not self._initialized:
+            logger.error("Attempted to search with uninitialized web search skill")
             return {
                 "success": False,
                 "error": "Web search skill not initialized",
@@ -98,36 +91,40 @@ class WebSearchSkill:
             }
 
         try:
-            # Use configured defaults if parameters not provided
-            search_depth = search_depth or self.search_depth
-            topic = topic or self.default_topic
-            max_tokens = max_tokens or self.default_max_tokens
-
-            # Get search context optimized for RAG
-            context = self._client.get_search_context(
-                query=query,
-                search_depth=search_depth,
-                topic=topic,
-                time_range=time_range,
-                max_tokens=max_tokens
+            logger.info(f"Attempting Tavily search with query: {query}")
+            
+            # Log the client state
+            logger.debug(f"Tavily client state - initialized: {self._initialized}")
+            if hasattr(self._client, 'api_key'):
+                # Only log first/last 4 chars of API key for security
+                key = self._client.api_key
+                logger.debug(f"API key present: {key[:4]}...{key[-4:]}")
+            
+            # Use basic search instead of get_search_context
+            logger.debug("Making API call to Tavily search endpoint")
+            search_results = self._client.search(
+                query=query
             )
+            
+            logger.debug(f"Received response from Tavily: {type(search_results)}")
+            logger.debug(f"Response keys: {search_results.keys() if isinstance(search_results, dict) else 'Not a dict'}")
 
             return {
                 "success": True,
                 "data": {
                     "query": query,
-                    "context": context,
-                    "used_config": {
-                        "search_depth": search_depth,
-                        "topic": topic,
-                        "max_tokens": max_tokens
-                    }
+                    "context": search_results,
+                    "used_config": {}
                 },
                 "error": None,
             }
 
         except Exception as e:
             logger.error(f"Error in Web search: {e}", exc_info=True)
+            # Log the full exception details
+            if hasattr(e, 'response'):
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             return {
                 "success": False,
                 "error": str(e),

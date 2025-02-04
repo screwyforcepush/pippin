@@ -14,11 +14,7 @@ async def main():
     search_query = "What are the latest developments in quantum computing?"
     print(f"\nPerforming web search for: {search_query}")
     response = await web_search_skill.search(
-        query=search_query,
-        search_depth="basic",
-        topic="general",
-        time_range="week",
-        max_tokens=2000  # Using a smaller context for testing
+        query=search_query
     )
 
     # Check and display the search results

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 @activity(
     name="emergent_research",
     energy_cost=0.5,
-    cooldown=7200,  # 2 hours
+    cooldown=20,  # 2 hours
     required_skills=["openai_chat"],
 )
 class EmergentResearchActivity(ActivityBase):
@@ -35,26 +35,39 @@ class EmergentResearchActivity(ActivityBase):
         try:
             logger.info("Starting emergent research analysis")
 
-            # Get memory reference
+            # Get memory reference using the standard pattern
             system_data = shared_data.get_category_data("system")
             memory = system_data.get("memory_ref")
 
             if not memory:
-                return ActivityResult.error_result("Memory reference not found")
+                # Fallback to a global digital being's memory reference
+                from framework.main import DigitalBeing
+                being = DigitalBeing()
+                being.initialize()
+                memory = being.memory
 
-            # Retrieve research data from memory
-            arxiv_papers = memory.retrieve_data("latest_research") or []
-            web_research = memory.retrieve_data("web_research") or []
+            # Look for research data in recent activities
+            recent_activities = memory.get_recent_activities(limit=20)
+            research_data = []
 
-            if not arxiv_papers and not web_research:
-                return ActivityResult.error_result("No research data found in memory")
+            for activity in recent_activities:
+                if activity["success"]:
+                    if activity["activity_type"] == "FetchResearchActivity" and "data" in activity:
+                        if "papers" in activity["data"]:
+                            research_data.extend(activity["data"]["papers"])
+                    elif activity["activity_type"] == "WebResearchActivity" and "data" in activity:
+                        if "findings" in activity["data"]:
+                            research_data.extend(activity["data"]["findings"])
+
+            if not research_data:
+                return ActivityResult.error_result("No research data found in recent activities")
 
             # Initialize chat skill
             if not await chat_skill.initialize():
                 return ActivityResult.error_result("Failed to initialize chat skill")
 
             # Prepare research summary for analysis
-            research_summary = self._prepare_research_summary(arxiv_papers, web_research)
+            research_summary = self._prepare_research_summary(research_data)
 
             # Generate emergent insights
             analysis_prompt = f"""Analyze the following research data and generate emergent insights:
@@ -78,23 +91,11 @@ class EmergentResearchActivity(ActivityBase):
             if not result["success"]:
                 return ActivityResult.error_result(result["error"])
 
-            # Store insights in memory
-            insights = {
-                "content": result["data"]["content"],
-                "timestamp": shared_data.get_current_time(),
-                "sources": {
-                    "arxiv_count": len(arxiv_papers),
-                    "web_count": len(web_research)
-                }
-            }
-            memory.store_data("emergent_insights", insights)
-
             return ActivityResult.success_result(
                 data={
                     "insights": result["data"]["content"],
                     "source_counts": {
-                        "arxiv_papers": len(arxiv_papers),
-                        "web_sources": len(web_research)
+                        "research_data": len(research_data)
                     }
                 },
                 metadata={
@@ -107,21 +108,16 @@ class EmergentResearchActivity(ActivityBase):
             logger.error(f"Error in emergent research activity: {e}")
             return ActivityResult.error_result(str(e))
 
-    def _prepare_research_summary(self, arxiv_papers: List[Dict], web_research: List[Dict]) -> str:
+    def _prepare_research_summary(self, research_data: List[Dict]) -> str:
         """Prepare a formatted summary of research data for analysis."""
         summary_parts = []
 
-        if arxiv_papers:
-            summary_parts.append("ArXiv Papers:")
-            for paper in arxiv_papers:
-                summary_parts.append(f"- Title: {paper.get('title')}")
-                summary_parts.append(f"  Abstract: {paper.get('summary')}")
-                summary_parts.append(f"  Categories: {paper.get('categories', [])}\n")
-
-        if web_research:
-            summary_parts.append("Web Research:")
-            for item in web_research:
-                summary_parts.append(f"- Title: {item.get('title')}")
+        for item in research_data:
+            summary_parts.append(f"- Title: {item.get('title')}")
+            if "summary" in item:  # ArXiv paper
+                summary_parts.append(f"  Abstract: {item.get('summary')}")
+                summary_parts.append(f"  Categories: {item.get('categories', [])}\n")
+            else:  # Web research
                 summary_parts.append(f"  Content: {item.get('content')}")
                 summary_parts.append(f"  URL: {item.get('url')}\n")
 
