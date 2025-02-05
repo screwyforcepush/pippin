@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 @activity(
     name="emergent_research",
     energy_cost=0.5,
-    cooldown=20,  # 2 hours
+    cooldown=200,  # 2 hours
     required_skills=["openai_chat"],
 )
 class EmergentResearchActivity(ActivityBase):
